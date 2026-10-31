@@ -1,0 +1,84 @@
+.player-avatar {
+  --avatar-size: 40px;
+  position: relative;
+  display: inline-grid;
+  flex: 0 0 var(--avatar-size);
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid rgba(255, 255, 255, 0.16);
+  border-radius: 34%;
+  background: var(--avatar-bg);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+.player-avatar--small {
+  --avatar-size: 28px;
+}
+
+.player-avatar--medium {
+  --avatar-size: 40px;
+}
+
+.player-avatar--large {
+  --avatar-size: 80px;
+  border-width: 3px;
+}
+
+.player-avatar.is-current::after {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 7px;
+  height: 7px;
+  border: 2px solid #172017;
+  border-radius: 50%;
+  background: #c9ff57;
+  content: "";
+}
+
+.player-avatar.is-winner {
+  border-color: #c9ff57;
+  box-shadow:
+    0 0 0 3px rgba(201, 255, 87, 0.16),
+    0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.player-avatar svg {
+  width: 100%;
+  height: 100%;
+}
+
+.player-avatar__head {
+  fill: var(--avatar-face);
+}
+
+.player-avatar__decoration,
+.player-avatar__cheek {
+  fill: var(--avatar-accent);
+}
+
+.player-avatar__eye {
+  fill: #fff;
+}
+
+.player-avatar__line,
+.player-avatar__mouth,
+.player-avatar__teeth {
+  fill: none;
+  stroke: #fff;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.player-avatar__teeth {
+  stroke-width: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-avatar {
+    transition: none;
+  }
+}

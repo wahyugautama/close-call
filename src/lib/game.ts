@@ -13,6 +13,7 @@ export type GameResult = {
   guess: number | null;
   stake: number | null;
   earned: number;
+  comeback_bonus?: number;
 };
 
 export type GameState = {
@@ -32,20 +33,47 @@ export type GameState = {
     stake: number;
   } | null;
   results?: GameResult[] | null;
+  comeback_eligible?: boolean;
+};
+
+type ComebackState = {
+  round: number | null;
+  eligible: boolean;
+  bonuses: Array<{ player_id: string; comeback_bonus: number }>;
 };
 
 export async function getGameState(roomId: string): Promise<GameState> {
-  const { data, error } = await supabase.rpc("get_game_state", {
-    p_room_id: roomId,
-  });
+  const [gameResponse, comebackResponse] = await Promise.all([
+    supabase.rpc("get_game_state", { p_room_id: roomId }),
+    supabase.rpc("get_comeback_state", { p_room_id: roomId }),
+  ]);
 
-  if (error) throw error;
-  return data as GameState;
+  if (gameResponse.error) throw gameResponse.error;
+  if (comebackResponse.error) throw comebackResponse.error;
+
+  const game = gameResponse.data as GameState;
+  const comeback = comebackResponse.data as ComebackState;
+  const comebackMatchesRound = comeback.round === game.round;
+  const bonusByPlayer = new Map(
+    (comebackMatchesRound ? comeback.bonuses : []).map((bonus) => [
+      bonus.player_id,
+      bonus.comeback_bonus,
+    ]),
+  );
+
+  return {
+    ...game,
+    comeback_eligible: comebackMatchesRound && comeback.eligible,
+    results: game.results?.map((result) => ({
+      ...result,
+      comeback_bonus: bonusByPlayer.get(result.player_id) ?? 0,
+    })),
+  };
 }
 
 export async function submitOnlineGuess(
   roomId: string,
-  guess: number,
+  guess: string,
   stake: number,
 ) {
   const { error } = await supabase.rpc("submit_guess", {

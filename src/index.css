@@ -1,6 +1,10 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap");
 
 :root {
+  --motion-fast: 180ms;
+  --motion-normal: 320ms;
+  --motion-slow: 480ms;
+  --ease-playful: cubic-bezier(0.2, 0.8, 0.2, 1);
   font-family: "DM Sans", sans-serif;
   color: #f6f6f0;
   background: #121414;
@@ -16,6 +20,8 @@
 body {
   margin: 0;
   min-width: 320px;
+  overflow-x: hidden;
+  background: #121414;
 }
 
 button,

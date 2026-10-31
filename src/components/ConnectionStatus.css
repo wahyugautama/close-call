@@ -1,0 +1,48 @@
+.connection-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  width: fit-content;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid #3a403c;
+  border-radius: 99px;
+  background: rgba(32, 37, 34, 0.92);
+  color: #a9b2ab;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.connection-status__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #c9ff57;
+}
+
+.connection-status.is-reconnecting .connection-status__dot {
+  background: #ffd166;
+}
+
+.connection-status.is-offline {
+  border-color: rgba(255, 133, 108, 0.45);
+  color: #ffb19f;
+}
+
+.connection-status.is-offline .connection-status__dot {
+  background: #ff856c;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .connection-status.is-reconnecting .connection-status__dot {
+    animation: connection-pulse 1s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes connection-pulse {
+  to {
+    opacity: 0.35;
+  }
+}

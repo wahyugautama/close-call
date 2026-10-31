@@ -1,8 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MultiplayerLobby from "./components/MultiplayerLobby";
 import MultiplayerGame from "./components/MultiplayerGame";
+import { supabase } from "./lib/supabase";
+import { getMyActiveRoom } from "./lib/rooms";
+import {
+  getInviteCode,
+  isInviteLocation,
+  normalizeRoomCode,
+  ROOM_CODE_PATTERN,
+} from "./lib/invites";
+import { readLastNickname, rememberNickname } from "./lib/onboarding";
+
 import {
   createRoom as createOnlineRoom,
+  getRoomErrorMessage,
   joinRoom as joinOnlineRoom,
   type Room,
 } from "./lib/rooms";
@@ -79,15 +90,27 @@ const STARTING_SCORE = 500;
 const STAKES = [0, 100, 250] as const;
 
 function calculatePoints(guess: number, answer: number, stake: number): number {
-  const error =
-    (Math.abs(guess - answer) / Math.max(Math.abs(answer), 1)) * 100;
+  const isExact = guess === answer;
+  const error = answer === 0 ? null : Math.abs(guess - answer) / Math.abs(answer);
+  const basePoints = isExact
+    ? 300
+    : error !== null && error <= 0.05
+      ? 200
+      : error !== null && error <= 0.15
+        ? 120
+        : error !== null && error <= 0.3
+          ? 60
+          : 0;
 
-  if (error === 0) return 500 + stake * 2;
-  if (error <= 5) return 350 + stake;
-  if (error <= 15) return 200;
-  if (error <= 30) return 100 - stake;
+  if (stake === 100) {
+    return basePoints + (isExact || (error !== null && error <= 0.15) ? 100 : -100);
+  }
 
-  return -stake;
+  if (stake === 250) {
+    return basePoints + (isExact || (error !== null && error <= 0.05) ? 250 : -250);
+  }
+
+  return basePoints;
 }
 
 function randomCode(): string {
@@ -136,8 +159,13 @@ function App() {
   // --------------------------------
 
   const [screen, setScreen] = useState<Screen>("home");
-  const [nickname, setNickname] = useState("");
-  const [joinCode, setJoinCode] = useState("");
+  const [nickname, setNickname] = useState(readLastNickname);
+  const [joinCode, setJoinCode] = useState(() =>
+    getInviteCode(window.location),
+  );
+  const [openedFromInvite, setOpenedFromInvite] = useState(() =>
+    isInviteLocation(window.location),
+  );
   const [roomCode, setRoomCode] = useState("");
   const [players, setPlayers] = useState<Player[]>([]);
   const [round, setRound] = useState(0);
@@ -145,6 +173,7 @@ function App() {
   const [stake, setStake] = useState<number>(0);
   const [time, setTime] = useState(ROUND_TIME);
   const [message, setMessage] = useState("");
+  const [restoringSession, setRestoringSession] = useState(true);
 
   // --------------------------------
   // Online multiplayer state
@@ -155,6 +184,8 @@ function App() {
   const [onlineUserId, setOnlineUserId] = useState("");
 
   const [onlineLoading, setOnlineLoading] = useState(false);
+  const [onlineRematch, setOnlineRematch] = useState(false);
+  const onlineRequestBusy = useRef(false);
 
   // --------------------------------
   // Refs for local game
@@ -166,8 +197,20 @@ function App() {
   const roundRef = useRef(0);
   const screenRef = useRef<Screen>("home");
   const handleOnlineGameStart = useCallback(() => {
+    setOnlineRoom((current) =>
+      current ? { ...current, status: "playing" } : current,
+    );
     screenRef.current = "onlineGame";
     setScreen("onlineGame");
+  }, []);
+
+  const handleRematchLobby = useCallback(() => {
+    setOnlineRematch(true);
+    setOnlineRoom((current) =>
+      current ? { ...current, status: "lobby" } : current,
+    );
+    screenRef.current = "onlineLobby";
+    setScreen("onlineLobby");
   }, []);
 
   // --------------------------------
@@ -208,10 +251,12 @@ function App() {
       return;
     }
 
-    if (onlineLoading) return;
+    if (onlineRequestBusy.current) return;
 
+    onlineRequestBusy.current = true;
     setOnlineLoading(true);
     setMessage("");
+    setNickname(name);
 
     try {
       const { room, user } = await createOnlineRoom(name);
@@ -219,37 +264,40 @@ function App() {
       setOnlineRoom(room);
       setOnlineUserId(user.id);
       setRoomCode(room.code);
+      rememberNickname(name);
 
       updateScreen("onlineLobby");
     } catch (error) {
       console.error("Create room error:", error);
 
-      setMessage(
-        error instanceof Error ? error.message : "Could not create room",
-      );
+      setMessage(getRoomErrorMessage(error, "Could not create room"));
     } finally {
+      onlineRequestBusy.current = false;
       setOnlineLoading(false);
     }
   }
 
   async function handleJoinOnlineRoom() {
     const name = nickname.trim();
-    const code = joinCode.trim().toUpperCase();
+    const code = normalizeRoomCode(joinCode);
 
     if (!name) {
       setMessage("Enter your nickname first.");
       return;
     }
 
-    if (!/^[A-HJ-NP-Z2-9]{4}$/.test(code)) {
+    if (!ROOM_CODE_PATTERN.test(code)) {
       setMessage("Enter a valid four-character room code.");
       return;
     }
 
-    if (onlineLoading) return;
+    if (onlineRequestBusy.current) return;
 
+    onlineRequestBusy.current = true;
     setOnlineLoading(true);
     setMessage("");
+    setNickname(name);
+    setJoinCode(code);
 
     try {
       const { room, user } = await joinOnlineRoom(code, name);
@@ -257,15 +305,15 @@ function App() {
       setOnlineRoom(room);
       setOnlineUserId(user.id);
       setRoomCode(room.code);
+      rememberNickname(name);
 
-      updateScreen("onlineLobby");
+      updateScreen(room.status === "lobby" ? "onlineLobby" : "onlineGame");
     } catch (error) {
       console.error("Join room error:", error);
 
-      setMessage(
-        error instanceof Error ? error.message : "Could not join room",
-      );
+      setMessage(getRoomErrorMessage(error, "Could not join room"));
     } finally {
+      onlineRequestBusy.current = false;
       setOnlineLoading(false);
     }
   }
@@ -273,8 +321,11 @@ function App() {
   function leaveOnlineLobby() {
     setOnlineRoom(null);
     setOnlineUserId("");
+    setOnlineRematch(false);
     setRoomCode("");
     setMessage("");
+
+    window.history.replaceState({}, "", "/");
 
     updateScreen("home");
   }
@@ -441,6 +492,63 @@ function App() {
     }
   }, [beginQuestion]);
 
+  useEffect(() => {
+    let active = true;
+
+    async function restoreSession() {
+      const inviteCode = getInviteCode(window.location);
+      const hasInvite = isInviteLocation(window.location);
+
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user || !active) return;
+
+        const room = await getMyActiveRoom();
+
+        if (
+          !active ||
+          !room ||
+          (hasInvite && room.code !== inviteCode)
+        ) {
+          return;
+        }
+
+        setOnlineRoom(room);
+        setOnlineUserId(user.id);
+        setRoomCode(room.code);
+
+        const nextScreen =
+          room.status === "lobby" ? "onlineLobby" : "onlineGame";
+
+        screenRef.current = nextScreen;
+        setScreen(nextScreen);
+      } catch (error) {
+        console.error("Session restore failed:", error);
+      } finally {
+        if (active) {
+          if (
+            hasInvite &&
+            !screenRef.current.startsWith("online")
+          ) {
+            setJoinCode(inviteCode);
+            screenRef.current = "join";
+            setScreen("join");
+          }
+
+          setRestoringSession(false);
+        }
+      }
+    }
+
+    void restoreSession();
+
+    return () => {
+      active = false;
+    };
+  }, []);
   // --------------------------------
   // Local game countdown
   // --------------------------------
@@ -481,6 +589,22 @@ function App() {
   // --------------------------------
   // Render
   // --------------------------------
+  if (restoringSession) {
+    return (
+      <main className="app">
+        <header className="topbar">
+          <div className="logo">
+            CLOSE<span>CALL.</span>
+          </div>
+        </header>
+
+        <div className="score-card">
+          <strong>RECONNECTING...</strong>
+          <p>Checking your last game session.</p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="app">
@@ -525,7 +649,17 @@ function App() {
             maxLength={18}
             placeholder="Enter nickname"
             value={nickname}
-            onChange={(event) => setNickname(event.target.value)}
+            onChange={(event) => {
+              setNickname(event.target.value);
+              setMessage("");
+            }}
+            autoFocus
+            autoComplete="nickname"
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                void handleCreateOnlineRoom();
+              }
+            }}
           />
 
           <div className="actions" style={{ marginTop: 16 }}>
@@ -541,6 +675,7 @@ function App() {
               className="btn btn-secondary"
               onClick={() => {
                 setMessage("");
+                setOpenedFromInvite(false);
                 updateScreen("join");
               }}
             >
@@ -552,8 +687,14 @@ function App() {
             </button>
           </div>
 
+          {message && (
+            <p className="form-error" role="alert">
+              {message}
+            </p>
+          )}
+
           <p className="muted" style={{ fontSize: 12 }}>
-            Online lobby is live. Multiplayer gameplay is coming next.
+            Online multiplayer is live. Create a room or join your friends.
           </p>
         </>
       )}
@@ -561,22 +702,45 @@ function App() {
       {/* JOIN ROOM */}
 
       {screen === "join" && (
-        <>
+        <form
+          className={openedFromInvite ? "invite-join" : ""}
+          onSubmit={(event) => {
+            event.preventDefault();
+            void handleJoinOnlineRoom();
+          }}
+        >
           <button
+            type="button"
             className="back"
             onClick={() => {
               setMessage("");
+              setOpenedFromInvite(false);
+              window.history.replaceState({}, "", "/");
               updateScreen("home");
             }}
           >
             ← Back
           </button>
 
-          <h1 className="screen-title">Join a room.</h1>
+          <div className="eyebrow">
+            {openedFromInvite ? "YOU’RE INVITED" : "JOIN A ROOM"}
+          </div>
+
+          {openedFromInvite && ROOM_CODE_PATTERN.test(joinCode) && (
+            <div className="invite-code-card" aria-label={`Room code ${joinCode}`}>
+              <span>YOU’VE BEEN INVITED TO ROOM</span>
+              <strong>{joinCode}</strong>
+            </div>
+          )}
+
+          <h1 className="screen-title">
+            {openedFromInvite ? "Join the game." : "Join a room."}
+          </h1>
 
           <p className="description">
-            Enter your nickname and the four-character room code shared by your
-            friend.
+            {openedFromInvite && ROOM_CODE_PATTERN.test(joinCode)
+              ? `Room ${joinCode} is waiting. Choose a nickname to continue.`
+              : "Enter your nickname and the four-character room code shared by your friend."}
           </p>
 
           <div className="form-group">
@@ -590,7 +754,12 @@ function App() {
               maxLength={18}
               placeholder="Enter nickname"
               value={nickname}
-              onChange={(event) => setNickname(event.target.value)}
+              onChange={(event) => {
+                setNickname(event.target.value);
+                setMessage("");
+              }}
+              autoFocus
+              autoComplete="nickname"
             />
           </div>
 
@@ -605,21 +774,44 @@ function App() {
               placeholder="ABCD"
               maxLength={4}
               autoCapitalize="characters"
+              autoComplete="off"
               value={joinCode}
-              onChange={(event) =>
-                setJoinCode(event.target.value.toUpperCase())
-              }
+              readOnly={openedFromInvite && ROOM_CODE_PATTERN.test(joinCode)}
+              aria-invalid={Boolean(
+                openedFromInvite && !ROOM_CODE_PATTERN.test(joinCode),
+              )}
+              onChange={(event) => {
+                setJoinCode(normalizeRoomCode(event.target.value));
+                setMessage("");
+              }}
             />
           </div>
 
+          {openedFromInvite && !ROOM_CODE_PATTERN.test(joinCode) && (
+            <div className="invite-error" role="alert">
+              <strong>This invitation link isn’t valid.</strong>
+              <span>Ask the host for a new link or enter a room code manually.</span>
+            </div>
+          )}
+
           <button
+            type="submit"
             className="btn btn-primary"
-            onClick={handleJoinOnlineRoom}
-            disabled={onlineLoading}
+            disabled={
+              onlineLoading ||
+              !nickname.trim() ||
+              !ROOM_CODE_PATTERN.test(joinCode)
+            }
           >
             {onlineLoading ? "JOINING..." : "JOIN GAME →"}
           </button>
-        </>
+
+          {message && (
+            <p className="form-error" role="alert">
+              {message}
+            </p>
+          )}
+        </form>
       )}
 
       {/* ONLINE LOBBY */}
@@ -628,6 +820,7 @@ function App() {
         <MultiplayerLobby
           room={onlineRoom}
           userId={onlineUserId}
+          isRematch={onlineRematch}
           onLeave={leaveOnlineLobby}
           onGameStart={handleOnlineGameStart}
         />
@@ -638,6 +831,7 @@ function App() {
           room={onlineRoom}
           userId={onlineUserId}
           onLeave={leaveOnlineLobby}
+          onRematchLobby={handleRematchLobby}
         />
       )}
 
@@ -864,7 +1058,7 @@ function App() {
 
       {/* ERROR MESSAGE */}
 
-      {message && (
+      {message && screen !== "join" && (
         <p
           role="alert"
           style={{

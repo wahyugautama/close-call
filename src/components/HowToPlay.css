@@ -1,0 +1,128 @@
+.tutorial-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: max(18px, env(safe-area-inset-top)) 16px
+    max(18px, env(safe-area-inset-bottom));
+  background: rgba(5, 7, 6, 0.82);
+  animation: tutorial-fade var(--motion-fast) ease-out both;
+}
+
+.tutorial-dialog {
+  width: min(100%, 430px);
+  padding: 20px;
+  border: 1px solid #465044;
+  border-radius: 22px;
+  background: #1d221f;
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
+}
+
+.tutorial-header,
+.tutorial-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.tutorial-header > span {
+  color: #c9ff57;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+}
+
+.tutorial-header button {
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  background: transparent;
+  color: #a8b0aa;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.tutorial-progress {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 12px 0 24px;
+}
+
+.tutorial-progress span {
+  height: 4px;
+  border-radius: 99px;
+  background: #343b36;
+}
+
+.tutorial-progress span.is-active {
+  background: #c9ff57;
+}
+
+.tutorial-visual {
+  display: grid;
+  place-items: center;
+  min-height: 128px;
+  padding: 20px;
+  border: 1px solid #3c473d;
+  border-radius: 17px;
+  background: #252d27;
+  color: #c9ff57;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: clamp(25px, 8vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  text-align: center;
+}
+
+.tutorial-dialog h2 {
+  margin: 24px 0 10px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.tutorial-dialog p {
+  min-height: 66px;
+  margin: 0 0 24px;
+  color: #aeb7b0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.tutorial-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 0.75fr) minmax(0, 1.25fr);
+}
+
+.tutorial-actions .btn {
+  min-height: 54px;
+}
+
+@keyframes tutorial-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (max-width: 359px) {
+  .tutorial-dialog {
+    padding: 16px;
+  }
+
+  .tutorial-visual {
+    min-height: 105px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tutorial-backdrop {
+    animation: none;
+  }
+}

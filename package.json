@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test:multiplayer": "node scripts/multiplayer-stress.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
