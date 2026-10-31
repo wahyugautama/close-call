@@ -16,23 +16,23 @@ select is(
 );
 select cmp_ok(
   (select count(*) from public.game_questions where difficulty = 'easy'),
-  '>=', 2::bigint,
-  'at least two easy questions are available'
+  '>=', 20::bigint,
+  'at least twenty easy questions are available'
 );
 select cmp_ok(
   (select count(*) from public.game_questions where difficulty = 'medium'),
-  '>=', 3::bigint,
-  'at least three medium questions are available'
+  '>=', 21::bigint,
+  'at least twenty-one medium questions are available'
 );
 select cmp_ok(
   (select count(*) from public.game_questions where difficulty = 'hard'),
-  '>=', 2::bigint,
-  'at least two hard questions are available'
+  '>=', 20::bigint,
+  'at least twenty hard questions are available'
 );
 select cmp_ok(
   (select count(distinct category) from public.game_questions),
-  '>=', 2::bigint,
-  'multiple categories are available for variety'
+  '>=', 10::bigint,
+  'at least ten categories are available for variety'
 );
 
 select ok(
